@@ -150,8 +150,12 @@ module emu
 	// 1 - D-/TX
 	// 2..6 - USR2..USR6
 	// Set USER_OUT to 1 to read from USER_IN.
-	input   [6:0] USER_IN,
-	output  [6:0] USER_OUT,
+	// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: USER_OSD + USER_PP, USER_IN/OUT widened to 8 bits
+	output        USER_OSD,
+	output  [7:0] USER_PP,
+	input   [7:0] USER_IN,
+	output  [7:0] USER_OUT,
+	// [MiSTer-DB9 END]
 
 	input         OSD_STATUS
 );
@@ -159,7 +163,57 @@ module emu
 ///////// Default values for ports not used in this core /////////
 
 assign ADC_BUS  = 'Z;
-assign USER_OUT = '1;
+// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: USER_PP driver
+assign USER_PP = USER_PP_DRIVE;
+// [MiSTer-DB9 END]
+
+// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: joydb wrapper
+wire         CLK_JOY = CLK_50M;                 // Assign clock between 40-50Mhz
+wire   [1:0] joy_type_raw    = status[127:126]; // 0=Off, 1=Saturn, 2=DB9MD, 3=DB15
+wire         joy_2p          = status[125];     // 2P core: joy_2p is the real selector
+wire         snac_active     = 1'b0;
+wire         mt32_primary_active = 1'b0;
+wire   [1:0] joy_type        = snac_active ? 2'd0 : joy_type_raw;
+wire         joy_db9md_en    = (joy_type == 2'd2);
+wire         joy_db15_en     = (joy_type == 2'd3);
+wire         joy_any_en      = |joy_type;
+// [MiSTer-DB9 END]
+
+// [MiSTer-DB9-Pro BEGIN] - Saturn key gate
+wire         saturn_unlocked;                   // driven by hps_io UIO_DB9_KEY (0xFE)
+// [MiSTer-DB9-Pro END]
+
+// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: joydb wrapper wires + instance
+wire   [7:0] USER_OUT_DRIVE;
+wire   [7:0] USER_PP_DRIVE;
+wire  [15:0] joydb_1, joydb_2;
+wire         joydb_1ena, joydb_2ena;
+wire         pad_1_6btn, pad_2_6btn;
+wire  [15:0] joy_raw_payload;
+
+joydb joydb (
+  .clk             ( CLK_JOY         ),
+  .USER_IN         ( USER_IN         ),
+  .OSD_STATUS          ( OSD_STATUS          ),
+  .snac_active         ( snac_active         ),
+  .mt32_primary_active ( mt32_primary_active ),
+  .joy_type        ( joy_type        ),
+  .joy_2p          ( joy_2p          ),
+  .saturn_unlocked ( saturn_unlocked ),
+  .USER_OUT_DRIVE  ( USER_OUT_DRIVE  ),
+  .USER_PP_DRIVE   ( USER_PP_DRIVE   ),
+  .USER_OSD        ( USER_OSD        ),
+  .joydb_1         ( joydb_1         ),
+  .joydb_2         ( joydb_2         ),
+  .joydb_1ena      ( joydb_1ena      ),
+  .joydb_2ena      ( joydb_2ena      ),
+  .pad_1_6btn      ( pad_1_6btn      ),
+  .pad_2_6btn      ( pad_2_6btn      ),
+  .joy_raw         ( joy_raw_payload )
+);
+
+assign USER_OUT = USER_OUT_DRIVE;
+// [MiSTer-DB9 END]
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
@@ -195,6 +249,11 @@ localparam CONF_STR = {
 	"OD,D-pad,Absolute,Integration;",
 	"OC,Bright,Off,On;" ,
 	"O67,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
+	"-;",
+	// [MiSTer-DB9-Pro BEGIN] - Saturn-first joy_type (canonical bit notation)
+	"O[127:126],UserIO Joystick,Off,Saturn,DB9MD,DB15;",
+	"O[125],UserIO Players,1 Player,2 Players;",
+	// [MiSTer-DB9-Pro END]
 	"J,Start,Select,1,2,3,4,5,6,7,8,9,10,11,12;",
 	"T0,Reset;",
 	"R0,Reset and close OSD;",
@@ -203,7 +262,9 @@ localparam CONF_STR = {
 
 wire forced_scandoubler;
 wire  [1:0] buttons;
-wire [31:0] status;
+// [MiSTer-DB9-Pro BEGIN] - widened to 128 for joy_type / joy_2p
+wire [127:0] status;
+// [MiSTer-DB9-Pro END]
 wire [10:0] ps2_key;
 
 wire        ioctl_download;
@@ -212,7 +273,11 @@ wire        ioctl_wr;
 wire [24:0] ioctl_addr;
 wire [7:0]  ioctl_dout;
 wire        ioctl_wait;
-wire [31:0] joystick_0,joystick_1;
+// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: USB-side joystick wires renamed + joydb mux
+wire [31:0] joystick_0_USB,joystick_1_USB;
+wire [31:0] joystick_0 = joydb_1ena ? (OSD_STATUS ? 32'b0 : {18'b0, joydb_1[13:0]}) : joystick_0_USB;
+wire [31:0] joystick_1 = joydb_2ena ? (OSD_STATUS ? 32'b0 : {18'b0, joydb_2[13:0]}) : (joydb_1ena ? joystick_0_USB : joystick_1_USB);
+// [MiSTer-DB9 END]
 wire [15:0] joystick_analog_0,joystick_analog_1;
 
 hps_io #(.CONF_STR(CONF_STR)) hps_io
@@ -234,8 +299,14 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 	.ioctl_dout(ioctl_dout),
 	.ioctl_wait(ioctl_wait),
 	
-	.joystick_0(joystick_0),
-	.joystick_1(joystick_1),
+	// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: route USB joysticks through joydb mux + joy_raw
+	.joystick_0(joystick_0_USB),
+	.joystick_1(joystick_1_USB),
+	.joy_raw(OSD_STATUS ? joy_raw_payload : 16'b0),
+	// [MiSTer-DB9 END]
+	// [MiSTer-DB9-Pro BEGIN] - Saturn key gate
+	.saturn_unlocked(saturn_unlocked),
+	// [MiSTer-DB9-Pro END]
 	.joystick_r_analog_0(joystick_analog_0),
 	.joystick_r_analog_1(joystick_analog_1),
 

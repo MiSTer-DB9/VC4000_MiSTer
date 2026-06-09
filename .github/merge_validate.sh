@@ -56,7 +56,7 @@ source "${SCRIPT_DIR}/step6.sh"
 # index-state noise at `git merge --no-commit`, not a wiring break; still
 # printed by step6_verify as info, just never gated here. 11 (Saturn-first
 # CONF_STR order) IS blocking — an upstream CONF_STR reorder is a real
-# OSD-cycle ghost-input hazard (the Saturn OSD-cycle rule).
+# OSD-cycle ghost-input hazard (the fork hazard notes).
 BLOCKING_STEP6=" 3 4 4b 5 6 7 10 11 "
 
 BASELINE_FILE="${RUNNER_TEMP:-/tmp}/db9_merge_validate_baseline.txt"

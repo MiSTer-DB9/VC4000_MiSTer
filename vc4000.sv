@@ -289,8 +289,8 @@ wire [7:0]  ioctl_dout;
 wire        ioctl_wait;
 // [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: USB-side joystick wires renamed + joydb mux
 wire [31:0] joystick_0_USB,joystick_1_USB;
-wire [31:0] joystick_0 = joydb_1ena ? (OSD_STATUS ? 32'b0 : {18'b0, joydb_1[13:0]}) : joystick_0_USB;
-wire [31:0] joystick_1 = joydb_2ena ? (OSD_STATUS ? 32'b0 : {18'b0, joydb_2[13:0]}) : (joydb_1ena ? joystick_0_USB : joystick_1_USB);
+wire [31:0] joystick_0 = joydb_1ena ? (OSD_STATUS ? 32'b0 : joydb_1_mapped[13:0]) : joystick_0_USB;
+wire [31:0] joystick_1 = joydb_2ena ? (OSD_STATUS ? 32'b0 : joydb_2_mapped[13:0]) : (joydb_1ena ? joystick_0_USB : joystick_1_USB);
 // [MiSTer-DB9 END]
 wire [15:0] joystick_analog_0,joystick_analog_1;
 

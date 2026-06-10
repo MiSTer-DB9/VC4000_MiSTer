@@ -12,7 +12,7 @@
 # porter is supposed to preserve a custom RHS (extract_snac_active_rhs in
 # port_core_full.py). A re-run / merge that loses it is silent -- exactly
 # the regression class the fleet audit exists to catch. Table-driven, keyed
-# by core directory name (the hazard doc's per-core table).
+# by core directory name (the fork hazard notes' per-core table).
 #
 # Severities (mirrors joydb_map_check.py's contract):
 #   FATAL   (exit 1): a known SNAC core whose snac_active RHS is still the
